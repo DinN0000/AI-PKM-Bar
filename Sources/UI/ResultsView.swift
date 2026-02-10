@@ -121,7 +121,7 @@ struct ResultRow: View {
                         }
 
                     switch result.status {
-                    case .success, .deduplicated:
+                    case .success:
                         HStack(spacing: 4) {
                             Image(systemName: result.para.icon)
                                 .font(.caption2)
@@ -129,6 +129,10 @@ struct ResultRow: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                    case .deduplicated(let message):
+                        Text(message)
+                            .font(.caption)
+                            .foregroundColor(.blue)
                     case .skipped(let message):
                         Text(message)
                             .font(.caption)

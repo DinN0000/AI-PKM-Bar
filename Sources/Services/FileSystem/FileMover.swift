@@ -213,7 +213,8 @@ struct FileMover {
                 fileName: fileName,
                 para: classification.para,
                 targetPath: companionPath,
-                tags: classification.tags
+                tags: classification.tags,
+                status: .deduplicated("중복 — \(dupFileName)와 병합됨")
             )
         }
 
@@ -254,13 +255,15 @@ struct FileMover {
         // Duplicate check: compare body against existing .md files in target
         if let dupPath = findDuplicateByBody(sourceBody, in: targetDir) {
             // Merge tags into existing file
+            let dupFileName = (dupPath as NSString).lastPathComponent
             mergeTags(classification.tags, into: dupPath)
             try fm.removeItem(atPath: filePath)
             return ProcessedFileResult(
                 fileName: fileName,
                 para: classification.para,
                 targetPath: dupPath,
-                tags: classification.tags
+                tags: classification.tags,
+                status: .deduplicated("중복 — \(dupFileName)와 병합됨")
             )
         }
 

@@ -235,6 +235,13 @@ class PasteCapturingView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        DispatchQueue.main.async { [weak self] in
+            self?.window?.makeFirstResponder(self)
+        }
+    }
+
     override func keyDown(with event: NSEvent) {
         if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "v" {
             onPaste?()

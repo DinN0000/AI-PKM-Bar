@@ -2,7 +2,7 @@ import Foundation
 
 /// Handles frontmatter injection into markdown files
 enum FrontmatterWriter {
-    /// Inject frontmatter into markdown content
+    /// Inject frontmatter into markdown content, with optional [[project]] wikilink
     static func injectFrontmatter(
         into content: String,
         para: PARACategory,
@@ -20,7 +20,14 @@ enum FrontmatterWriter {
             project: project,
             file: file
         )
-        return fm.inject(into: content)
+        var result = fm.inject(into: content)
+
+        // Append [[project]] wikilink if related project exists and not already linked
+        if let project = project, !project.isEmpty, !result.contains("[[\(project)]]") {
+            result += "\n\n---\nrelated:: [[\(project)]]\n"
+        }
+
+        return result
     }
 
     /// Create companion markdown for binary files

@@ -9,10 +9,12 @@ final class AppState: ObservableObject {
     // MARK: - Published State
 
     enum Screen {
+        case onboarding
         case inbox
         case processing
         case results
         case settings
+        case reorganize
     }
 
     @Published var currentScreen: Screen = .inbox
@@ -22,6 +24,10 @@ final class AppState: ObservableObject {
     @Published var processingStatus: String = ""
     @Published var processedResults: [ProcessedFileResult] = []
     @Published var pendingConfirmations: [PendingConfirmation] = []
+    @Published var showCoachMarks: Bool = false
+    @Published var reorganizeCategory: PARACategory?
+    @Published var reorganizeSubfolder: String?
+    @Published var processingOrigin: Screen = .inbox
 
     // MARK: - Settings
 
@@ -33,15 +39,46 @@ final class AppState: ObservableObject {
 
     @Published var hasAPIKey: Bool = false
 
+    // MARK: - Menubar Icon
+
+    /// Black text face expression for the menubar
+    var menuBarFace: String {
+        switch currentScreen {
+        case .onboarding:
+            return "·‿·"
+        case .inbox:
+            return inboxFileCount > 0 ? "·_·!" : "-_-"
+        case .processing:
+            return "·_·…"
+        case .results:
+            let hasErrors = processedResults.contains(where: \.isError)
+            let hasPending = !pendingConfirmations.isEmpty
+            if hasErrors || hasPending { return "·_·;" }
+            return "^‿^"
+        case .settings:
+            return "·_·?"
+        case .reorganize:
+            return "·_·?"
+        }
+    }
+
     // MARK: - Init
 
     private init() {
         self.pkmRootPath = UserDefaults.standard.string(forKey: "pkmRootPath")
             ?? (NSHomeDirectory() + "/Documents/AI-PKM")
         self.hasAPIKey = KeychainService.getAPIKey() != nil
-        // Show settings on first launch if no API key
-        if !self.hasAPIKey {
+
+        if !UserDefaults.standard.bool(forKey: "onboardingCompleted") {
+            self.currentScreen = .onboarding
+        } else if !self.hasAPIKey {
             self.currentScreen = .settings
+        }
+
+        // Show coach marks on first inbox visit after onboarding
+        if UserDefaults.standard.bool(forKey: "onboardingCompleted")
+            && !UserDefaults.standard.bool(forKey: "hasSeenCoachMarks") {
+            self.showCoachMarks = true
         }
     }
 
@@ -65,6 +102,7 @@ final class AppState: ObservableObject {
         processingStatus = "시작 중..."
         processedResults = []
         pendingConfirmations = []
+        processingOrigin = .inbox
         currentScreen = .processing
 
         let processor = InboxProcessor(
@@ -94,6 +132,76 @@ final class AppState: ObservableObject {
         isProcessing = false
     }
 
+    func startReorganizing() async {
+        guard !isProcessing else { return }
+        guard hasAPIKey else {
+            currentScreen = .settings
+            return
+        }
+        guard let category = reorganizeCategory, let subfolder = reorganizeSubfolder else { return }
+
+        isProcessing = true
+        processingProgress = 0
+        processingStatus = "시작 중..."
+        processedResults = []
+        pendingConfirmations = []
+        processingOrigin = .reorganize
+        currentScreen = .processing
+
+        let reorganizer = FolderReorganizer(
+            pkmRoot: pkmRootPath,
+            category: category,
+            subfolder: subfolder,
+            onProgress: { [weak self] progress, status in
+                Task { @MainActor in
+                    self?.processingProgress = progress
+                    self?.processingStatus = status
+                }
+            }
+        )
+
+        do {
+            let results = try await reorganizer.process()
+            processedResults = results.processed
+            pendingConfirmations = results.needsConfirmation
+            currentScreen = .results
+        } catch {
+            processingStatus = "오류: \(error.localizedDescription)"
+        }
+
+        isProcessing = false
+    }
+
+    /// Skip a pending confirmation — file stays where it is
+    func skipConfirmation(_ confirmation: PendingConfirmation) {
+        pendingConfirmations.removeAll { $0.id == confirmation.id }
+        let message = confirmation.reason == .misclassified
+            ? "건너뜀 — 현재 위치 유지"
+            : "건너뜀 — 인박스에 유지"
+        processedResults.append(ProcessedFileResult(
+            fileName: confirmation.fileName,
+            para: .archive,
+            targetPath: confirmation.filePath,
+            tags: [],
+            status: .skipped(message)
+        ))
+        checkConfirmationsComplete()
+    }
+
+    /// Delete a pending file entirely
+    func deleteConfirmation(_ confirmation: PendingConfirmation) {
+        pendingConfirmations.removeAll { $0.id == confirmation.id }
+        try? FileManager.default.removeItem(atPath: confirmation.filePath)
+        processedResults.append(ProcessedFileResult(
+            fileName: confirmation.fileName,
+            para: .archive,
+            targetPath: "",
+            tags: [],
+            status: .deleted
+        ))
+        checkConfirmationsComplete()
+    }
+
     func confirmClassification(_ confirmation: PendingConfirmation, choice: ClassifyResult) async {
         pendingConfirmations.removeAll { $0.id == confirmation.id }
 
@@ -110,9 +218,10 @@ final class AppState: ObservableObject {
                 para: choice.para,
                 targetPath: "",
                 tags: choice.tags,
-                error: error.localizedDescription
+                status: .error(error.localizedDescription)
             ))
         }
+        checkConfirmationsComplete()
     }
 
     /// Copy files into _Inbox/ folder, return count of successfully added files
@@ -160,8 +269,44 @@ final class AppState: ObservableObject {
         currentScreen = .inbox
         processedResults = []
         pendingConfirmations = []
+        reorganizeCategory = nil
+        reorganizeSubfolder = nil
         Task {
             await refreshInboxCount()
+        }
+    }
+
+    func navigateBack() {
+        if processingOrigin == .reorganize, reorganizeCategory != nil, reorganizeSubfolder != nil {
+            currentScreen = .reorganize
+        } else {
+            currentScreen = .inbox
+        }
+        processedResults = []
+        pendingConfirmations = []
+        if currentScreen == .inbox {
+            reorganizeCategory = nil
+            reorganizeSubfolder = nil
+            Task {
+                await refreshInboxCount()
+            }
+        }
+    }
+
+    private var isAutoNavigating = false
+
+    private func checkConfirmationsComplete() {
+        guard pendingConfirmations.isEmpty else { return }
+        guard !isAutoNavigating else { return }
+        isAutoNavigating = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard pendingConfirmations.isEmpty else {
+                isAutoNavigating = false
+                return
+            }
+            navigateBack()
+            isAutoNavigating = false
         }
     }
 }
@@ -169,14 +314,37 @@ final class AppState: ObservableObject {
 // MARK: - Result Types
 
 struct ProcessedFileResult: Identifiable {
+    enum Status {
+        case success
+        case skipped(String)
+        case deleted
+        case deduplicated(String)
+        case error(String)
+    }
+
     let id = UUID()
     let fileName: String
     let para: PARACategory
     let targetPath: String
     let tags: [String]
-    var error: String?
+    var status: Status = .success
 
-    var isSuccess: Bool { error == nil }
+    var isSuccess: Bool {
+        switch status {
+        case .success, .deduplicated: return true
+        default: return false
+        }
+    }
+
+    var isError: Bool {
+        if case .error = status { return true }
+        return false
+    }
+
+    var error: String? {
+        if case .error(let message) = status { return message }
+        return nil
+    }
 
     var displayTarget: String {
         let url = URL(fileURLWithPath: targetPath)
@@ -191,9 +359,17 @@ struct ProcessedFileResult: Identifiable {
 }
 
 struct PendingConfirmation: Identifiable {
+    enum Reason {
+        case lowConfidence
+        case indexNoteConflict
+        case nameConflict
+        case misclassified
+    }
+
     let id = UUID()
     let fileName: String
     let filePath: String
     let content: String
     let options: [ClassifyResult]
+    var reason: Reason = .lowConfidence
 }

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
@@ -6,10 +7,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
     private let appState = AppState.shared
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         setupPopover()
+        observeStateForIcon()
 
         // Hide dock icon
         NSApp.setActivationPolicy(.accessory)
@@ -19,7 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "tray.and.arrow.down.fill", accessibilityDescription: "AI-PKM")
+            button.title = appState.menuBarFace
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -34,6 +37,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(appState)
         )
         self.popover = popover
+    }
+
+    private func observeStateForIcon() {
+        // Observe all state changes that affect the icon
+        appState.$currentScreen
+            .combineLatest(
+                appState.$inboxFileCount,
+                appState.$processedResults,
+                appState.$pendingConfirmations
+            )
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _, _, _, _ in
+                self?.updateMenuBarIcon()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func updateMenuBarIcon() {
+        statusItem?.button?.title = appState.menuBarFace
+        statusItem?.button?.image = nil
     }
 
     @objc private func togglePopover() {

@@ -84,8 +84,38 @@ struct InboxProcessor {
                 continue
             }
 
+            // Index note conflict: file name matches 폴더명.md — ask user instead of auto-renaming
+            if mover.wouldConflictWithIndexNote(fileName: input.fileName, classification: classification) {
+                needsConfirmation.append(PendingConfirmation(
+                    fileName: input.fileName,
+                    filePath: input.filePath,
+                    content: String(input.content.prefix(500)),
+                    options: generateOptions(for: classification, projectNames: projectNames),
+                    reason: .indexNoteConflict
+                ))
+                continue
+            }
+
+            // Name conflict: same name exists at target with different content
+            if !isDirectory(input.filePath),
+               mover.wouldConflictWithExistingFile(fileName: input.fileName, classification: classification) {
+                needsConfirmation.append(PendingConfirmation(
+                    fileName: input.fileName,
+                    filePath: input.filePath,
+                    content: String(input.content.prefix(500)),
+                    options: generateOptions(for: classification, projectNames: projectNames),
+                    reason: .nameConflict
+                ))
+                continue
+            }
+
             do {
-                let result = try await mover.moveFile(at: input.filePath, with: classification)
+                let result: ProcessedFileResult
+                if isDirectory(input.filePath) {
+                    result = try mover.moveFolder(at: input.filePath, with: classification)
+                } else {
+                    result = try await mover.moveFile(at: input.filePath, with: classification)
+                }
                 processed.append(result)
             } catch {
                 processed.append(ProcessedFileResult(
@@ -93,7 +123,7 @@ struct InboxProcessor {
                     para: classification.para,
                     targetPath: "",
                     tags: classification.tags,
-                    error: error.localizedDescription
+                    status: .error(error.localizedDescription)
                 ))
                 failed += 1
             }
@@ -120,8 +150,18 @@ struct InboxProcessor {
 
     // MARK: - Private
 
-    /// Extract text content from a file
+    private func isDirectory(_ path: String) -> Bool {
+        var isDir: ObjCBool = false
+        FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
+        return isDir.boolValue
+    }
+
+    /// Extract text content from a file or folder
     private func extractContent(from filePath: String) -> String {
+        if isDirectory(filePath) {
+            return extractFolderContent(from: filePath)
+        }
+
         if BinaryExtractor.isBinaryFile(filePath) {
             let result = BinaryExtractor.extract(at: filePath)
             return result.text ?? "[바이너리 파일: \(result.file?.name ?? "unknown")]"
@@ -133,6 +173,25 @@ struct InboxProcessor {
         }
 
         return "[읽기 실패: \((filePath as NSString).lastPathComponent)]"
+    }
+
+    /// Extract combined content from all files inside a folder
+    private func extractFolderContent(from dirPath: String) -> String {
+        let folderName = (dirPath as NSString).lastPathComponent
+        let scanner = InboxScanner(pkmRoot: pkmRoot)
+        let files = scanner.filesInDirectory(at: dirPath)
+
+        var content = "[폴더: \(folderName)] 포함 파일 \(files.count)개\n\n"
+        for file in files {
+            let name = (file as NSString).lastPathComponent
+            if let text = try? String(contentsOfFile: file, encoding: .utf8) {
+                content += "--- \(name) ---\n"
+                content += String(text.prefix(1500)) + "\n\n"
+            } else {
+                content += "--- \(name) [바이너리] ---\n\n"
+            }
+        }
+        return String(content.prefix(5000))
     }
 
     /// Generate alternative classification options for uncertain files

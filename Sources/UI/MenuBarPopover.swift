@@ -4,44 +4,60 @@ struct MenuBarPopover: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        VStack(spacing: 0) {
-            switch appState.currentScreen {
-            case .inbox:
-                InboxStatusView()
-            case .processing:
-                ProcessingView()
-            case .results:
-                ResultsView()
-            case .settings:
-                SettingsView()
+        ZStack {
+            VStack(spacing: 0) {
+                switch appState.currentScreen {
+                case .onboarding:
+                    OnboardingView()
+                case .inbox:
+                    InboxStatusView()
+                case .processing:
+                    ProcessingView()
+                case .results:
+                    ResultsView()
+                case .settings:
+                    SettingsView()
+                case .reorganize:
+                    ReorganizeView()
+                }
+
+                // Footer (hidden during onboarding and settings)
+                if appState.currentScreen != .settings && appState.currentScreen != .onboarding {
+                    Divider()
+                    HStack {
+                        Button(action: { appState.currentScreen = .settings }) {
+                            Image(systemName: "gear")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+
+                        Text("AI-PKM")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+
+                        Button(action: { NSApp.terminate(nil) }) {
+                            Image(systemName: "power")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
             }
 
-            // Footer
-            if appState.currentScreen != .settings {
-                Divider()
-                HStack {
-                    Button(action: { appState.currentScreen = .settings }) {
-                        Image(systemName: "gear")
-                            .foregroundColor(.secondary)
+            // Coach mark overlay
+            if appState.showCoachMarks && appState.currentScreen == .inbox {
+                CoachMarkOverlay {
+                    withAnimation {
+                        appState.showCoachMarks = false
+                        UserDefaults.standard.set(true, forKey: "hasSeenCoachMarks")
                     }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Text("AI-PKM")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    Button(action: { NSApp.terminate(nil) }) {
-                        Image(systemName: "power")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
             }
         }
         .frame(width: 360, height: 480)

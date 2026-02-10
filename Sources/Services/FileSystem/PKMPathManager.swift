@@ -47,6 +47,15 @@ struct PKMPathManager {
             && fm.fileExists(atPath: projectsPath)
     }
 
+    /// Create the full PARA folder structure
+    func initializeStructure() throws {
+        let fm = FileManager.default
+        let folders = [inboxPath, projectsPath, areaPath, resourcePath, archivePath]
+        for folder in folders {
+            try fm.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        }
+    }
+
     /// Get existing subfolders for Area/Resource/Archive
     func existingSubfolders() -> [String: [String]] {
         var result: [String: [String]] = [

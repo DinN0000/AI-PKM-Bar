@@ -210,10 +210,13 @@ actor Classifier {
         \(subfolderContext)
 
         ## 분류 규칙
-        - project: 마감일, 체크리스트, 액션 아이템이 있거나, 위 활성 프로젝트와 직접 관련된 문서
+        - project: 해당 프로젝트의 직접적인 작업 문서만 (액션 아이템, 체크리스트, 마감 관련 문서). 반드시 project 필드에 프로젝트명 기재.
         - area: 유지보수, 모니터링, 운영, 지속적 책임 영역의 문서
         - resource: 분석 자료, 가이드, 레퍼런스, 하우투, 학습 자료
         - archive: 완료된 작업, 오래된 내용, 더 이상 활성이 아닌 문서
+
+        ⚠️ 프로젝트와 관련된 참고 자료는 project가 아니라 resource로, 운영/관리 문서는 area로 분류하세요.
+        ⚠️ para가 project가 아니더라도, 활성 프로젝트와 관련이 있으면 project 필드에 해당 프로젝트명을 기재하세요. 관련 없으면 생략.
 
         ## 분류할 파일 목록
         \(fileList)
@@ -226,7 +229,7 @@ actor Classifier {
             "para": "project" | "area" | "resource" | "archive",
             "tags": ["태그1", "태그2"],
             "confidence": 0.0~1.0,
-            "project": "프로젝트명 (project일 때만, 아니면 생략)",
+            "project": "관련 프로젝트명 (관련 있을 때만, 없으면 생략)",
             "targetFolder": "하위 폴더명 (예: DevOps, 회의록). PARA 접두사 포함하지 말 것"
           }
         ]
@@ -253,10 +256,13 @@ actor Classifier {
         \(subfolderContext)
 
         ## 분류 규칙
-        - project: 마감일, 체크리스트, 액션 아이템이 있거나, 위 활성 프로젝트와 직접 관련된 문서. 반드시 관련 프로젝트명을 project 필드에 기재.
+        - project: 해당 프로젝트의 직접적인 작업 문서만 (액션 아이템, 체크리스트, 마감 관련 문서). 반드시 project 필드에 프로젝트명 기재.
         - area: 유지보수, 모니터링, 운영, 지속적 책임 영역의 문서
         - resource: 분석 자료, 가이드, 레퍼런스, 하우투, 학습 자료
         - archive: 완료된 작업, 오래된 내용, 더 이상 활성이 아닌 문서
+
+        ⚠️ 프로젝트와 관련된 참고 자료는 project가 아니라 resource로, 운영/관리 문서는 area로 분류하세요.
+        ⚠️ para가 project가 아니더라도, 활성 프로젝트와 관련이 있으면 project 필드에 해당 프로젝트명을 기재하세요. 관련 없으면 생략.
 
         ## 대상 파일
         파일명: \(fileName)
@@ -271,7 +277,7 @@ actor Classifier {
           "tags": ["태그1", "태그2"],
           "summary": "문서 내용을 2~3문장으로 요약",
           "targetFolder": "하위 폴더명. PARA 접두사 포함하지 말 것",
-          "project": "관련 프로젝트명 (project일 때만, 아니면 생략)"
+          "project": "관련 프로젝트명 (관련 있을 때만, 없으면 생략)"
         }
 
         tags는 최대 5개, summary는 한국어로 작성하세요.

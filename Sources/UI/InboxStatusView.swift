@@ -5,90 +5,24 @@ struct InboxStatusView: View {
     @EnvironmentObject var appState: AppState
     @State private var isDragOver = false
     @State private var dropFeedback: String?
+    @State private var bounceAnimation = false
+    @State private var isButtonHovered = false
 
     var body: some View {
         VStack(spacing: 16) {
             Spacer()
 
-            // Inbox icon
-            Image(systemName: isDragOver ? "tray.and.arrow.down" : "tray.and.arrow.down.fill")
-                .font(.system(size: 48))
-                .foregroundColor(isDragOver ? .green : .accentColor)
-                .scaleEffect(isDragOver ? 1.2 : 1.0)
-                .animation(.easeInOut(duration: 0.2), value: isDragOver)
-
-            // File count
-            VStack(spacing: 4) {
-                Text("인박스")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                if let feedback = dropFeedback {
-                    Text(feedback)
-                        .font(.subheadline)
-                        .foregroundColor(.green)
-                        .transition(.opacity)
-                } else if appState.inboxFileCount > 0 {
-                    Text("\(appState.inboxFileCount)개 파일")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("비어 있음")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            // Action button
-            if appState.inboxFileCount > 0 {
-                Button(action: {
-                    Task {
-                        await appState.startProcessing()
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "sparkles")
-                        Text("정리하기")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .padding(.horizontal, 40)
-                .disabled(!appState.hasAPIKey)
-
-                if !appState.hasAPIKey {
-                    Text("API 키를 먼저 설정하세요")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                }
-            }
-
-            // Drop hint
             if appState.inboxFileCount == 0 && !isDragOver {
-                VStack(spacing: 4) {
-                    Text("파일을 여기에 끌어다 놓거나")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    HStack(spacing: 2) {
-                        Image(systemName: "command")
-                            .font(.caption2)
-                        Text("V 로 붙여넣기")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.secondary)
-                }
-            }
-
-            if isDragOver {
-                Text("놓으면 인박스에 추가됩니다")
-                    .font(.caption)
-                    .foregroundColor(.green)
-                    .fontWeight(.medium)
+                emptyStateView
+            } else {
+                activeStateView
             }
 
             Spacer()
+
+            HoverTextLink(label: "폴더 정리", color: .secondary) {
+                appState.currentScreen = .reorganize
+            }
 
             // PKM path info
             HStack {
@@ -105,7 +39,7 @@ struct InboxStatusView: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(isDragOver ? Color.green : Color.clear, lineWidth: 2)
+                .strokeBorder(isDragOver ? Color.primary.opacity(0.4) : Color.clear, lineWidth: 2)
                 .padding(4)
         )
         .onDrop(of: [.fileURL], isTargeted: $isDragOver) { providers in
@@ -118,6 +52,106 @@ struct InboxStatusView: View {
         .onAppear {
             Task {
                 await appState.refreshInboxCount()
+            }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                bounceAnimation = true
+            }
+        }
+    }
+
+    // MARK: - Empty State
+
+    private var emptyStateView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "tray.and.arrow.down.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary.opacity(0.5))
+                .offset(y: bounceAnimation ? -3 : 3)
+
+            Text("인박스")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("비어 있음")
+                .font(.title3)
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 4) {
+                Text("파일을 여기에 끌어다 놓거나")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                HStack(spacing: 2) {
+                    Image(systemName: "command")
+                        .font(.caption2)
+                    Text("V 로 붙여넣기")
+                        .font(.caption)
+                }
+                .foregroundColor(.secondary)
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    // MARK: - Active State
+
+    private var activeStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: isDragOver ? "tray.and.arrow.down" : "tray.and.arrow.down.fill")
+                .font(.system(size: 48))
+                .foregroundColor(isDragOver ? .primary : .accentColor)
+                .scaleEffect(isDragOver ? 1.2 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: isDragOver)
+
+            VStack(spacing: 4) {
+                Text("인박스")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                if let feedback = dropFeedback {
+                    Text(feedback)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                        .transition(.opacity)
+                } else if appState.inboxFileCount > 0 {
+                    Text("\(appState.inboxFileCount)개 파일")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if appState.inboxFileCount > 0 {
+                Button(action: {
+                    Task {
+                        await appState.startProcessing()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "sparkles")
+                        Text("정리하기")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .padding(.horizontal, 40)
+                .scaleEffect(isButtonHovered ? 1.03 : 1.0)
+                .animation(.easeOut(duration: 0.12), value: isButtonHovered)
+                .onHover { isButtonHovered = $0 }
+                .disabled(!appState.hasAPIKey)
+
+                if !appState.hasAPIKey {
+                    Text("API 키를 먼저 설정하세요")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
+
+            if isDragOver {
+                Text("놓으면 인박스에 추가됩니다")
+                    .font(.caption)
+                    .foregroundColor(.primary.opacity(0.6))
+                    .fontWeight(.medium)
             }
         }
     }
@@ -154,7 +188,6 @@ struct InboxStatusView: View {
         let pasteboard = NSPasteboard.general
         var urls: [URL] = []
 
-        // File URLs from pasteboard
         if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: [
             .urlReadingFileURLsOnly: true
         ]) as? [URL] {
@@ -183,7 +216,6 @@ struct InboxStatusView: View {
 
 // MARK: - Paste Command Helper
 
-/// NSView-backed view that captures Cmd+V paste events
 struct PasteCommandView: NSViewRepresentable {
     let onPaste: () -> Void
 

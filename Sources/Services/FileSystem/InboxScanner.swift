@@ -11,7 +11,7 @@ struct InboxScanner {
 
     private static let ignoredPrefixes = [".", "_"]
 
-    /// Scan inbox and return file paths
+    /// Scan inbox and return top-level items (both files and folders)
     func scan() -> [String] {
         let inboxPath = PKMPathManager(root: pkmRoot).inboxPath
         let fm = FileManager.default
@@ -21,16 +21,28 @@ struct InboxScanner {
         }
 
         return entries.compactMap { name -> String? in
-            // Skip system files
             guard !Self.ignoredFiles.contains(name) else { return nil }
             guard !Self.ignoredPrefixes.contains(where: { name.hasPrefix($0) }) else { return nil }
 
             let fullPath = (inboxPath as NSString).appendingPathComponent(name)
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: fullPath, isDirectory: &isDir), !isDir.boolValue else {
-                return nil
-            }
+            guard fm.fileExists(atPath: fullPath) else { return nil }
 
+            return fullPath
+        }.sorted()
+    }
+
+    /// List all readable text files inside a directory (for content extraction)
+    func filesInDirectory(at dirPath: String) -> [String] {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: dirPath) else { return [] }
+
+        return entries.compactMap { name -> String? in
+            guard !Self.ignoredFiles.contains(name) else { return nil }
+            guard !Self.ignoredPrefixes.contains(where: { name.hasPrefix($0) }) else { return nil }
+
+            let fullPath = (dirPath as NSString).appendingPathComponent(name)
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: fullPath, isDirectory: &isDir), !isDir.boolValue else { return nil }
             return fullPath
         }.sorted()
     }

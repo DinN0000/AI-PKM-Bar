@@ -1,4 +1,4 @@
-# AI-PKM-MenuBar 온보딩 개선 설계
+# DotBrain 온보딩 개선 설계
 
 ## 개요
 
@@ -13,7 +13,7 @@
 3단계 스텝 위저드. 상단에 진행 표시기(● ● ○). 360×480 팝오버 내에서 동작.
 
 **Step 1: 환영 + PARA 소개**
-- "AI-PKM에 오신 걸 환영합니다" 타이틀
+- "DotBrain에 오신 걸 환영합니다" 타이틀
 - PARA 방법론 간단 소개: Project/Area/Resource/Archive 각각 아이콘 + 한줄 설명
 - [시작하기] 버튼
 
@@ -24,7 +24,7 @@
 - [다음] 버튼 — 키 저장 완료 시에만 활성화
 
 **Step 3: PKM 폴더 설정**
-- 경로 선택 (기본값 `~/Documents/AI-PKM` 표시)
+- 경로 선택 (기본값 `~/Documents/DotBrain` 표시)
 - PARA 구조 없으면 → [폴더 구조 만들기] 버튼 (자동생성)
 - 구조 확인됨 녹색 체크 표시
 - [완료] 버튼 → `onboardingCompleted = true` 저장, `.inbox`로 전환
